@@ -2,9 +2,11 @@
 <html>
 
 <head>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Guillotine: The Interactive Experience</title>
-    <script src="js/script.js"></script>
     <link rel="stylesheet" href="css/styles.css">
+    <script defer src="js/cloudinary-config.js"></script>
+    <script defer src="js/script.js"></script>
 </head>
 
 <body id="top">
@@ -36,7 +38,6 @@
         </nav>
     </header>
     <main>
-        <!-- could probably put the QR code for the pairdrop room directly here to automatically link them rather than having the user link to the room themselves with a room code. it would just have to be updated that same day it's showcased for the room upload creation -->
         <section id="upload">
             <h1 id="hero-title">The Blade Awaits.</h1>
             <p>The guillotine is heavy with the lingering presence of Charles-Henri Sanson. Even long after his death,
@@ -46,7 +47,16 @@
             </p>
             <p>The blade does not choose. That burden falls to you. Submit your image from your phone, and it will find
                 its way beneath the machine. Sanson will do the rest.</p>
-            <a href="https://pairdrop.net/" target="_blank">Open PairDrop</a> <!-- open in new tab -->
+            <div id="upload-area">
+                <label for="photo-input" id="choose-btn">Choose Photo</label>
+                <input type="file" id="photo-input" accept="image/jpeg,image/png">
+                <img id="preview" alt="Selected photo preview">
+                <button id="upload-btn">Send to the Blade</button>
+                <div id="progress-bar-wrap">
+                    <div id="progress-bar"></div>
+                </div>
+                <p id="upload-status"></p>
+            </div>
         </section>
 
         <section id="concept">
