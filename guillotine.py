@@ -18,7 +18,7 @@ CLOUDINARY_API_SECRET  = os.getenv("CLOUDINARY_API_SECRET", "")
 
 CLOUDINARY_FOLDER  = "guillotine"   # must match the folder set in cloudinary-config.js
 POLL_INTERVAL_SEC  = 5              # how often to check for new uploads
-PRINTER_KEYWORD    = "Phomemo"      # any part of the printer name in Windows
+PRINTER_KEYWORD    = "A28U"         # any part of the printer name in Windows
 DELETE_AFTER_PRINT = True           # remove from Cloudinary after printing
 
 import cloudinary
@@ -27,7 +27,9 @@ import cloudinary.uploader
 import requests
 from PIL import Image
 import win32print
-import win32api
+import win32ui
+import win32con
+from PIL import ImageWin
 
 # ── LOGGING ───────────────────────────────────────────────────────────────────
 
@@ -76,31 +78,41 @@ def prepare_image(src_path: str) -> str:
 # ── PRINT DISPATCH ────────────────────────────────────────────────────────────
 
 def print_image(printer_name: str, src_path: str) -> bool:
-    """Send image to printer via Windows ShellExecute. Returns True on success."""
-    tmp_path = None
+    """Send image to printer via GDI. Returns True on success."""
     try:
-        tmp_path = prepare_image(src_path)
         log.info(f"Sending to printer '{printer_name}': {Path(src_path).name}")
-        win32api.ShellExecute(
-            0,
-            "printto",
-            tmp_path,
-            f'"{printer_name}"',
-            ".",
-            0,
-        )
-        # Give the spooler time to read the BMP before we delete the temp file
-        time.sleep(15)
+        img = Image.open(src_path)
+        if img.mode != "RGB":
+            if img.mode in ("RGBA", "LA", "P"):
+                if img.mode == "P":
+                    img = img.convert("RGBA")
+                bg = Image.new("RGB", img.size, (255, 255, 255))
+                bg.paste(img, mask=img.split()[-1])
+                img = bg
+            else:
+                img = img.convert("RGB")
+
+        hdc = win32ui.CreateDC()
+        hdc.CreatePrinterDC(printer_name)
+
+        pw = hdc.GetDeviceCaps(win32con.HORZRES)
+        ph = hdc.GetDeviceCaps(win32con.VERTRES)
+
+        iw, ih = img.size
+        ratio = min(pw / iw, ph / ih)
+        nw, nh = int(iw * ratio), int(ih * ratio)
+
+        hdc.StartDoc(Path(src_path).name)
+        hdc.StartPage()
+        dib = ImageWin.Dib(img)
+        dib.draw(hdc.GetHandleOutput(), (0, 0, nw, nh))
+        hdc.EndPage()
+        hdc.EndDoc()
+        hdc.DeleteDC()
         return True
     except Exception as exc:
         log.error(f"Print failed for '{src_path}': {exc}")
         return False
-    finally:
-        if tmp_path and os.path.exists(tmp_path):
-            try:
-                os.unlink(tmp_path)
-            except OSError:
-                pass
 
 # ── CLOUDINARY POLLING ────────────────────────────────────────────────────────
 
@@ -120,7 +132,6 @@ def poll_and_print(printer_name: str, seen: set):
         public_id = resource["public_id"]
         if public_id in seen:
             continue
-        seen.add(public_id)
 
         url = resource["secure_url"]
         suffix = Path(resource.get("format", "jpg")).suffix or ".jpg"
@@ -137,9 +148,13 @@ def poll_and_print(printer_name: str, seen: set):
                 f.write(response.content)
 
             success = print_image(printer_name, tmp.name)
-            if success and DELETE_AFTER_PRINT:
-                cloudinary.uploader.destroy(public_id)
-                log.info(f"Deleted from Cloudinary: {public_id}")
+            if success:
+                seen.add(public_id)
+                if DELETE_AFTER_PRINT:
+                    cloudinary.uploader.destroy(public_id)
+                    log.info(f"Deleted from Cloudinary: {public_id}")
+            else:
+                log.warning(f"Print failed for {public_id} — will retry next poll (check paper/printer)")
         except Exception as exc:
             log.error(f"Error processing {public_id}: {exc}")
         finally:
@@ -177,20 +192,7 @@ def main():
     log.info("Press Ctrl+C to stop.")
     log.info("=" * 60)
 
-    # Mark any images already in Cloudinary as seen so they don't print on startup
     seen: set = set()
-    try:
-        existing = cloudinary.api.resources(
-            type="upload",
-            prefix=f"{CLOUDINARY_FOLDER}/",
-            max_results=500,
-        )
-        for r in existing.get("resources", []):
-            seen.add(r["public_id"])
-        if seen:
-            log.info(f"Skipping {len(seen)} pre-existing image(s) already in Cloudinary.")
-    except Exception as exc:
-        log.warning(f"Could not pre-load existing images: {exc}")
 
     try:
         while True:

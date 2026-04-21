@@ -11,12 +11,12 @@ function init() {
 }
 
 function initUpload() {
-    const input     = document.getElementById('photo-input');
-    const preview   = document.getElementById('preview');
+    const input = document.getElementById('photo-input');
+    const preview = document.getElementById('preview');
     const uploadBtn = document.getElementById('upload-btn');
-    const progWrap  = document.getElementById('progress-bar-wrap');
-    const progBar   = document.getElementById('progress-bar');
-    const status    = document.getElementById('upload-status');
+    const progWrap = document.getElementById('progress-bar-wrap');
+    const progBar = document.getElementById('progress-bar');
+    const status = document.getElementById('upload-status');
 
     let pendingFile = null;
 
@@ -73,7 +73,7 @@ function initUpload() {
 
         uploadBtn.disabled = true;
         progWrap.style.display = 'block';
-        status.textContent = 'Uploading…';
+        status.textContent = 'Uploading...';
         xhr.send(formData);
     });
 }
