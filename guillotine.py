@@ -99,6 +99,9 @@ def print_image(printer_name: str, src_path: str) -> bool:
         ph = hdc.GetDeviceCaps(win32con.VERTRES)
 
         iw, ih = img.size
+        if ph > pw and iw > ih:
+            img = img.rotate(90, expand=True)
+            iw, ih = img.size
         ratio = min(pw / iw, ph / ih)
         nw, nh = int(iw * ratio), int(ih * ratio)
 
